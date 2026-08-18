@@ -24,12 +24,38 @@ packrat --host 203.0.113.7 --port 31931 --user gpftp123 \
 | `--dest` | Destination folder on this machine |
 | `--zip` | Zip the download into one archive, delete the temp files |
 | `--slug` | Name in the zip filename (default `backup`) |
+| `--include` | Only download files matching this glob (repeatable) |
+| `--exclude` | Skip files matching this glob (repeatable; wins over `--include`) |
 
 Without `--zip`, each run downloads into a dated subfolder
 (`dest/2026-08-10-1432/`). With `--zip`, the download is staged in a temp
 directory, zipped to `dest/2026-08-10-1432-<slug>.zip`, and the temp files are
 removed — the zip is the artifact. Reruns never overwrite anything: the
 timestamp in the name makes every run unique.
+
+### File filters
+
+`--include` and `--exclude` take shell-style globs and can be repeated:
+
+```sh
+# Just the live world files, none of the rotating auto-backups:
+packrat ... --include 'run2.db' --include 'run2.fwl'
+
+# Everything for run2 except old copies and auto-backups:
+packrat ... --include 'run2.*' --exclude '*.old' --exclude '*backup*'
+```
+
+Rules (rsync-style):
+
+- No filters — everything under `--remote` is downloaded.
+- Any `--include` turns on whitelist mode: only matching files download.
+- `--exclude` always wins over `--include`.
+- A pattern without `/` matches the filename anywhere in the tree
+  (`'*.db'` catches `worlds_local/run2.db`). A pattern containing `/` matches
+  the whole path relative to `--remote` (`'worlds_local/run2.*'`).
+
+The scan report shows both counts ("Found 21 files, 2 match filters") so you
+can sanity-check a filter before the download starts.
 
 ### Passwords
 

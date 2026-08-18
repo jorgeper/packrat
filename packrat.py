@@ -5,6 +5,7 @@ datestamped archive like 2026-08-10-1432-valheim.zip.
 """
 
 import argparse
+import fnmatch
 import shutil
 import sys
 import tempfile
@@ -149,6 +150,25 @@ def diff_snapshots(
     )
 
 
+def _matches(path: str, pattern: str) -> bool:
+    # rsync-style: a pattern without "/" matches the filename anywhere in the
+    # tree; a pattern containing "/" matches the full relative path.
+    target = path if "/" in pattern else path.rsplit("/", 1)[-1]
+    return fnmatch.fnmatch(target, pattern)
+
+
+def filter_snapshot(
+    snapshot: Snapshot, includes: list[str], excludes: list[str]
+) -> Snapshot:
+    """Apply include/exclude globs. No includes = keep all; excludes win."""
+    return {
+        path: entry
+        for path, entry in snapshot.items()
+        if (not includes or any(_matches(path, p) for p in includes))
+        and not any(_matches(path, p) for p in excludes)
+    }
+
+
 def run_backup(
     ftp: FTP,
     remote: str,
@@ -157,13 +177,16 @@ def run_backup(
     zip_mode: bool = False,
     now: datetime | None = None,
     on_bytes: Callable[[int], None] | None = None,
+    includes: list[str] | None = None,
+    excludes: list[str] | None = None,
 ) -> BackupResult:
     """Download remote into dest — as a dated subfolder, or a datestamped zip."""
     now = now or datetime.now()
+    includes, excludes = includes or [], excludes or []
     dest = Path(dest)
     dest.mkdir(parents=True, exist_ok=True)
 
-    before = walk_remote(ftp, remote)
+    before = filter_snapshot(walk_remote(ftp, remote), includes, excludes)
 
     if zip_mode:
         staging = Path(tempfile.mkdtemp(prefix="packrat-"))
@@ -174,7 +197,7 @@ def run_backup(
 
     try:
         download_tree(ftp, remote, staging, before, on_bytes=on_bytes)
-        after = walk_remote(ftp, remote)
+        after = filter_snapshot(walk_remote(ftp, remote), includes, excludes)
         changed = diff_snapshots(before, after)
         if zip_mode:
             zip_directory(staging, artifact)
@@ -210,6 +233,21 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--zip", action="store_true", help="Zip the download into a single archive")
     parser.add_argument(
         "--slug", default="backup", help="Name used in the zip file (default: backup)"
+    )
+    parser.add_argument(
+        "--include",
+        action="append",
+        default=[],
+        metavar="GLOB",
+        help="Only download files matching this glob (repeatable). "
+        "Without '/', matches filenames anywhere; with '/', matches the path relative to --remote.",
+    )
+    parser.add_argument(
+        "--exclude",
+        action="append",
+        default=[],
+        metavar="GLOB",
+        help="Skip files matching this glob (repeatable; wins over --include)",
     )
     return parser
 
@@ -262,9 +300,18 @@ def main(argv: list[str] | None = None) -> int:
         console.print(f"[green]✓[/] Connected — {ftp.getwelcome().splitlines()[0]}")
 
         with console.status(f"Scanning [bold]{args.remote}[/]..."):
-            snapshot = walk_remote(ftp, args.remote)
+            found = walk_remote(ftp, args.remote)
+        snapshot = filter_snapshot(found, args.include, args.exclude)
         total = sum(size for size, _ in snapshot.values())
-        console.print(f"[green]✓[/] Found [bold]{len(snapshot)}[/] files · {total / 1024:,.0f} KiB")
+        if args.include or args.exclude:
+            console.print(
+                f"[green]✓[/] Found [bold]{len(found)}[/] files, "
+                f"[bold]{len(snapshot)}[/] match filters · {total / 1024:,.0f} KiB"
+            )
+        else:
+            console.print(
+                f"[green]✓[/] Found [bold]{len(snapshot)}[/] files · {total / 1024:,.0f} KiB"
+            )
         if not snapshot:
             console.print("[yellow]Nothing to download.[/]")
             return 1
@@ -286,6 +333,8 @@ def main(argv: list[str] | None = None) -> int:
                 slug=args.slug,
                 zip_mode=args.zip,
                 on_bytes=lambda n: progress.update(task, advance=n),
+                includes=args.include,
+                excludes=args.exclude,
             )
     except error_perm as exc:
         console.print(f"[red]✗ FTP error:[/] {exc}")

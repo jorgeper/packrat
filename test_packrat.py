@@ -268,3 +268,69 @@ class TestCliParser:
         assert args.port == 21
         assert args.zip is False
         assert args.slug == "backup"
+
+
+class TestFilterSnapshot:
+    SNAP = {
+        "run2.db": (100, "t"),
+        "run2.fwl": (10, "t"),
+        "run2.db.old": (100, "t"),
+        "run2_backup_auto-20260817.db": (90, "t"),
+        "worlds_local/old.db": (50, "t"),
+        "notes.txt": (5, "t"),
+    }
+
+    def test_no_filters_keeps_everything(self):
+        assert packrat.filter_snapshot(self.SNAP, [], []) == self.SNAP
+
+    def test_includes_are_a_whitelist(self):
+        out = packrat.filter_snapshot(self.SNAP, ["run2.db", "run2.fwl"], [])
+        assert sorted(out) == ["run2.db", "run2.fwl"]
+
+    def test_pattern_without_slash_matches_basename_anywhere(self):
+        out = packrat.filter_snapshot(self.SNAP, ["*.db"], [])
+        assert sorted(out) == [
+            "run2.db",
+            "run2_backup_auto-20260817.db",
+            "worlds_local/old.db",
+        ]
+
+    def test_pattern_with_slash_matches_full_relative_path(self):
+        out = packrat.filter_snapshot(self.SNAP, ["worlds_local/*"], [])
+        assert sorted(out) == ["worlds_local/old.db"]
+
+    def test_excludes_subtract(self):
+        out = packrat.filter_snapshot(self.SNAP, [], ["*.old", "*backup*"])
+        assert sorted(out) == ["notes.txt", "run2.db", "run2.fwl", "worlds_local/old.db"]
+
+    def test_excludes_win_over_includes(self):
+        out = packrat.filter_snapshot(self.SNAP, ["run2.*"], ["*.old"])
+        assert sorted(out) == ["run2.db", "run2.fwl"]
+
+
+class TestFiltersEndToEnd:
+    def test_run_backup_downloads_only_matching_files(self, ftp_conn, tmp_path):
+        dest = tmp_path / "backups"
+        result = packrat.run_backup(
+            ftp_conn, "/saves", dest, slug="w", zip_mode=True, now=STAMP,
+            includes=["world.*"], excludes=["*.fwl"],
+        )
+        with zipfile.ZipFile(dest / "2026-08-10-1432-w.zip") as zf:
+            assert zf.namelist() == ["world.db"]
+        assert result.files == 1
+        assert result.total_bytes == 1000
+
+    def test_parser_accepts_repeated_include_and_exclude(self):
+        args = packrat.build_parser().parse_args(
+            ["--host", "h", "--user", "u", "--remote", "/r", "--dest", "d",
+             "--include", "run2.db", "--include", "run2.fwl", "--exclude", "*.old"]
+        )
+        assert args.include == ["run2.db", "run2.fwl"]
+        assert args.exclude == ["*.old"]
+
+    def test_parser_defaults_to_no_filters(self):
+        args = packrat.build_parser().parse_args(
+            ["--host", "h", "--user", "u", "--remote", "/r", "--dest", "d"]
+        )
+        assert args.include == []
+        assert args.exclude == []
