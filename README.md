@@ -144,11 +144,26 @@ changes are detected.
 5. Push and open a pull request. CI is only wired to tags, so run the test
    suite locally before asking for review.
 
+### Working with AI assistants
+
+The repo carries instructions for coding agents in [`CLAUDE.md`](CLAUDE.md)
+(picked up automatically by Claude Code; `AGENTS.md` is a symlink to the same
+file for GitHub Copilot and other tools that read the AGENTS.md convention).
+It covers the layout, commands, testing rules, and known FTP gotchas — keep it
+up to date when those change.
+
 ## Cutting a release
 
 Releases are built by GitHub Actions from a `v*` tag — the workflow in
 `.github/workflows/release.yml` runs the tests on macOS and Windows, builds a
 binary on each with PyInstaller, and attaches both to the GitHub release.
+
+**With Claude Code:** just ask — "cut a patch release" or "cut 0.3.0". The
+[`cut-release` skill](.claude/skills/cut-release/SKILL.md) runs the whole flow
+below (preflight, tests, version bump, tag, watch CI, verify both binaries
+landed) and cleans up the tag if the build fails.
+
+**Manually:**
 
 1. Make sure `main` is green and up to date:
 
