@@ -87,3 +87,76 @@ uv run pytest
 Tests run against a real local FTP server (pyftpdlib), including a fallback
 path for servers without MLSD support and a check that mid-download file
 changes are detected.
+
+## Contributing
+
+1. Fork the repo and clone your fork, or create a branch if you have push
+   access:
+
+   ```sh
+   git checkout -b my-change
+   ```
+
+2. Make your change. Everything lives in two files: `packrat.py` (the whole
+   app) and `test_packrat.py` (the tests). Dev dependencies are managed by
+   [uv](https://docs.astral.sh/uv/) — there is no setup step, `uv run`
+   resolves them on first use.
+
+3. Add or update tests for the change, and keep the suite green:
+
+   ```sh
+   uv run pytest
+   ```
+
+   New behavior needs a test. FTP-facing changes should be tested against the
+   real pyftpdlib server fixtures in `test_packrat.py` (see `ftp_server` /
+   `ftp_conn`), not mocks.
+
+4. If you changed the CLI, sanity-check the binary build still works:
+
+   ```sh
+   uv run pyinstaller --onefile --name packrat packrat.py
+   ./dist/packrat --help
+   ```
+
+5. Push and open a pull request. CI is only wired to tags, so run the test
+   suite locally before asking for review.
+
+## Cutting a release
+
+Releases are built by GitHub Actions from a `v*` tag — the workflow in
+`.github/workflows/release.yml` runs the tests on macOS and Windows, builds a
+binary on each with PyInstaller, and attaches both to the GitHub release.
+
+1. Make sure `main` is green and up to date:
+
+   ```sh
+   git checkout main && git pull
+   uv run pytest
+   ```
+
+2. Bump `version` in `pyproject.toml` (e.g. `0.2.0`), commit, and push:
+
+   ```sh
+   git commit -am "Bump version to 0.2.0"
+   git push origin main
+   ```
+
+3. Tag that commit with a matching `v` prefix and push the tag — this is what
+   triggers the release build:
+
+   ```sh
+   git tag v0.2.0
+   git push origin v0.2.0
+   ```
+
+4. Watch the workflow and confirm both assets landed:
+
+   ```sh
+   gh run watch
+   gh release view v0.2.0
+   ```
+
+   The release should contain `packrat-macos-arm64` and `packrat-windows.exe`.
+   If a build fails, delete the tag (`git tag -d v0.2.0 && git push origin
+   :refs/tags/v0.2.0`), fix the problem on `main`, and tag again.
