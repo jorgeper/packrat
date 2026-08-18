@@ -1,6 +1,6 @@
 [project]
 name = "packrat"
-version = "0.1.1"
+version = "0.2.0"
 description = "A simple FTP backup CLI: download a remote folder, optionally zip it with a datestamped name."
 requires-python = ">=3.11"
 dependencies = ["rich>=13.0"]
