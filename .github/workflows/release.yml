@@ -33,3 +33,22 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: ${{ matrix.asset }}
+          body: |
+            ## Downloads
+
+            - `packrat-macos-arm64` — macOS on Apple Silicon
+            - `packrat-windows.exe` — Windows x64
+
+            ## macOS: "Apple could not verify … is free of malware"
+
+            The binary isn't signed or notarized with Apple, so the first launch is blocked by Gatekeeper. Two ways past it:
+
+            **Option 1 — clear the quarantine flag (fastest):**
+
+            ```sh
+            cd ~/Downloads   # or wherever you saved it
+            chmod +x packrat-macos-arm64
+            xattr -d com.apple.quarantine packrat-macos-arm64
+            ```
+
+            **Option 2 — approve it in System Settings:** run it once and click **Done** (not "Move to Trash"), then open **System Settings → Privacy & Security**, scroll to *"packrat-macos-arm64" was blocked*, click **Open Anyway**, and run it again. Only needed once per downloaded copy.

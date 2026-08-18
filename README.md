@@ -56,8 +56,30 @@ Grab a prebuilt binary from [Releases](../../releases):
 - `packrat-macos-arm64` — macOS on Apple Silicon
 - `packrat-windows.exe` — Windows x64
 
-On macOS: `chmod +x packrat-macos-arm64`, and on first run you may need to
-clear quarantine: `xattr -d com.apple.quarantine packrat-macos-arm64`.
+### macOS: "Apple could not verify … is free of malware"
+
+The binary isn't signed or notarized with Apple, so the first launch is
+blocked by Gatekeeper with a *"packrat-macos-arm64" Not Opened* dialog.
+Two ways past it:
+
+**Option 1 — clear the quarantine flag (fastest).** Downloads get tagged with
+a `com.apple.quarantine` attribute; remove it and make the file executable:
+
+```sh
+cd ~/Downloads   # or wherever you saved it
+chmod +x packrat-macos-arm64
+xattr -d com.apple.quarantine packrat-macos-arm64
+```
+
+Then run it normally. If `xattr` says "No such xattr", the flag is already
+gone and the binary should just run.
+
+**Option 2 — approve it in System Settings.** Try to run the binary once and
+click **Done** (not "Move to Trash") on the dialog. Then open
+**System Settings → Privacy & Security**, scroll down to the message saying
+*"packrat-macos-arm64" was blocked*, and click **Open Anyway**. Run it again
+and confirm one final prompt. You only have to do this once per downloaded
+copy.
 
 ## Run from source
 
