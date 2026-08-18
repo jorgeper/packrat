@@ -160,6 +160,26 @@ class TestWalkRemote:
         snapshot = packrat.walk_remote(ftp_conn, "/saves")
         assert set(snapshot) == {"world.db", "world.fwl", "worlds/old.db"}
 
+    def test_works_when_server_rejects_opts_and_nlst(self, ftp_conn, monkeypatch):
+        # Some game-host servers (e.g. G-Portal) implement MLSD but reject
+        # both OPTS MLST and NLST with 502.
+        from ftplib import error_perm
+
+        real_sendcmd = ftp_conn.sendcmd
+
+        def sendcmd(cmd):
+            if cmd.upper().startswith("OPTS"):
+                raise error_perm("502 'opts' not implemented")
+            return real_sendcmd(cmd)
+
+        def no_nlst(*args, **kwargs):
+            raise error_perm("502 'nlst' not implemented")
+
+        monkeypatch.setattr(ftp_conn, "sendcmd", sendcmd)
+        monkeypatch.setattr(ftp_conn, "nlst", no_nlst)
+        snapshot = packrat.walk_remote(ftp_conn, "/saves")
+        assert set(snapshot) == {"world.db", "world.fwl", "worlds/old.db"}
+
 
 class TestDownloadTree:
     def test_downloads_files_preserving_structure(self, ftp_conn, tmp_path):

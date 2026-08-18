@@ -68,7 +68,9 @@ def walk_remote(ftp: FTP, root: str) -> Snapshot:
 
 
 def _walk_mlsd(ftp: FTP, path: str, rel: str, out: Snapshot) -> None:
-    for name, facts in ftp.mlsd(path, ["type", "size", "modify"]):
+    # No explicit facts list: requesting one makes ftplib send OPTS MLST,
+    # which some game-host servers reject even though plain MLSD works.
+    for name, facts in ftp.mlsd(path):
         kind = facts.get("type")
         if kind == "dir":
             _walk_mlsd(ftp, f"{path}/{name}", f"{rel}{name}/", out)
